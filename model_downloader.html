@@ -177,6 +177,34 @@
       border-radius: 8px;
       border: 1px solid #1e293b;
     }
+
+    .cmd-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 5px;
+      flex-wrap: wrap;
+    }
+
+    .cmd-row code {
+      margin: 0;
+    }
+
+    .copy-btn {
+      background: #334155;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: #475569;
+    }
   </style>
 </head>
 
@@ -298,15 +326,36 @@
     /* =========================
        COMMAND UI
     ========================= */
+    window.copyCmd = function(btn, text) {
+      navigator.clipboard.writeText(text);
+      const old = btn.innerText;
+      btn.innerText = 'Copied!';
+      setTimeout(() => btn.innerText = old, 1500);
+    };
+
     function createCommandUI(repo, file) {
       const div = document.createElement('div');
       div.className = "cmd-ui";
 
+      let quant = "latest";
+      const qMatch = file.match(/-([a-zA-Z0-9_]+)\.gguf$/i);
+      if (qMatch) quant = qMatch[1];
+      
+      const llamaCmd = `./main -m ${file} -ngl 20`;
+      const ollamaCmd = `ollama run hf.co/${repo}:${quant}`;
+
       div.innerHTML = `
-    <div>🦙 llama.cpp:</div>
-    <code>./main -m ${file} -ngl 20</code><br>
-    <div style="margin-top:5px;">🧠 ollama:</div>
-    <code>ollama create mymodel -f Modelfile</code>
+    <div style="margin-bottom:4px;">🦙 llama.cpp:</div>
+    <div class="cmd-row">
+      <code>${llamaCmd}</code>
+      <button class="copy-btn" onclick="copyCmd(this, '${llamaCmd}')">Copy</button>
+    </div>
+    
+    <div style="margin-top:8px; margin-bottom:4px;">🧠 ollama:</div>
+    <div class="cmd-row">
+      <code>${ollamaCmd}</code>
+      <button class="copy-btn" onclick="copyCmd(this, '${ollamaCmd}')">Copy</button>
+    </div>
   `;
       return div;
     }
