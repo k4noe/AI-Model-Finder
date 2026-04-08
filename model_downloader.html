@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>GGUF AI HUB</title>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+
+    input,
+    select {
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background-color: #1e293b;
+      color: #e2e8f0;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #3b82f6;
+    }
+
+    input::placeholder {
+      color: #94a3b8;
+    }
+
+    button {
+      background: #22c55e;
+      color: white;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #16a34a;
+    }
+
+    label {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #cbd5e1;
+    }
+
+    input[type="checkbox"] {
+      accent-color: #22c55e;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .repo {
+      background: #1e293b;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    .file {
+      display: block;
+      margin: 10px 0 10px 15px;
+      padding: 8px 10px;
+      text-decoration: none;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .file:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .file.green {
+      color: #4ade80;
+    }
+
+    .file.blue {
+      color: #60a5fa;
+    }
+
+    .file.red {
+      color: #f87171;
+    }
+
+    .best {
+      background: rgba(34, 197, 94, 0.1);
+      border-left: 4px solid #22c55e;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      margin-left: 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .tag.code {
+      background: #2563eb;
+    }
+
+    .tag.chat {
+      background: #7c3aed;
+    }
+
+    .tag.reason {
+      background: #f59e0b;
+    }
+
+    .tag.light {
+      background: #10b981;
+    }
+
+    .progress-bar {
+      width: 100%;
+      background: #1e293b;
+      border-radius: 8px;
+      margin: 15px 0;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 12px;
+      background: #22c55e;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .specs {
+      background: #020617;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      border: 1px solid #334155;
+    }
+
+    code {
+      background: #0f172a;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      color: #a5b4fc;
+      border: 1px solid #1e293b;
+      display: inline-block;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+
+    .cmd-ui {
+      margin-left: 15px;
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-top: 10px;
+      background: #0b1121;
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>🚀 GGUF AI HUB</h2>
+
+  <div id="specs" class="specs">Detecting...</div>
+
+  <div>
+    <input id="query" placeholder="gemma, qwen, llama" onkeydown="if(event.key==='Enter') searchModels()">
+    <button onclick="searchModels()">Search</button>
+
+    <select id="filterSelect" onchange="applyFilter()">
+      <option value="all">All</option>
+      <option value="blue">Lightweight</option>
+      <option value="green">Recommended</option>
+      <option value="red">Heavy</option>
+    </select>
+  </div>
+
+  <div class="progress-bar">
+    <div id="progressFill" class="progress-fill"></div>
+  </div>
+
+  <div id="status"></div>
+  <div id="result"></div>
+
+  <script>
+    const input = document.getElementById('query');
+    const progressFill = document.getElementById('progressFill');
+
+    /* =========================
+       DETECT SPECS + CUDA
+    ========================= */
+    function detectSpecs() {
+      const ram = navigator.deviceMemory || '?';
+      const cpu = navigator.hardwareConcurrency || '?';
+
+      let gpu = "Unknown";
+      try {
+        const gl = document.createElement('canvas').getContext('webgl');
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        gpu = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+      } catch { }
+
+      let cuda = "Unknown";
+      let cudaVer = "Unknown";
+
+      if (gpu.toLowerCase().includes("3050")) {
+        cuda = "2560";
+        cudaVer = "CUDA 12.x recommended";
+      }
+
+      document.getElementById('specs').innerHTML =
+        `🖥️ VRAM: ${ram}GB | System RAM: 32GB DDR4 (2133MHz) | CPU Threads: ${cpu} | GPU: ${gpu}<br>
+     ⚡ CUDA Cores: ${cuda} | ${cudaVer}`;
+    }
+
+    detectSpecs();
+
+    /* =========================
+       CLASS
+    ========================= */
+    function getModelClass(name) {
+      name = name.toLowerCase();
+
+      if (name.includes('q2') || name.includes('q3')) return 'blue';
+      if (name.includes('q6') || name.includes('q8')) return 'red';
+
+      const m = name.match(/(\d+(\.\d+)?)(b|gb)/);
+      if (!m) return 'blue';
+
+      let size = parseFloat(m[1]);
+      if (m[3] === 'b') size *= 1.5;
+
+      if (size <= 5) return 'blue';
+      if (size <= 20) return 'green';
+      return 'red';
+    }
+
+    /* =========================
+       CAPABILITY TAG
+    ========================= */
+    function getTags(name) {
+      name = name.toLowerCase();
+      let tags = [];
+
+      if (name.includes('coder') || name.includes('code')) tags.push('code');
+      if (name.includes('chat') || name.includes('instruct')) tags.push('chat');
+      if (name.includes('reason') || name.includes('math')) tags.push('reason');
+      if (name.includes('1b') || name.includes('2b') || name.includes('3b')) tags.push('light');
+
+      return tags;
+    }
+
+    /* =========================
+       FILTER
+    ========================= */
+    function applyFilter() {
+      const val = document.getElementById('filterSelect').value;
+
+      const repos = document.querySelectorAll('.repo');
+      repos.forEach(repo => {
+        let hasVisible = false;
+        const items = repo.querySelectorAll('.file-wrapper');
+        items.forEach(item => {
+          if (val === 'all' || item.classList.contains(val)) {
+            item.style.display = 'block';
+            hasVisible = true;
+          } else {
+            item.style.display = 'none';
+          }
+        });
+        repo.style.display = hasVisible ? 'block' : 'none';
+      });
+    }
+
+    /* =========================
+       COMMAND UI
+    ========================= */
+    function createCommandUI(repo, file) {
+      const div = document.createElement('div');
+      div.className = "cmd-ui";
+
+      div.innerHTML = `
+    <div>🦙 llama.cpp:</div>
+    <code>./main -m ${file} -ngl 20</code><br>
+    <div style="margin-top:5px;">🧠 ollama:</div>
+    <code>ollama create mymodel -f Modelfile</code>
+  `;
+      return div;
+    }
+
+    /* =========================
+       SEARCH
+    ========================= */
+    async function searchModels() {
+      const raw = input.value.trim();
+      const result = document.getElementById('result');
+      const status = document.getElementById('status');
+
+      result.innerHTML = '';
+      progressFill.style.width = '0%';
+
+      if (!raw) {
+        status.innerHTML = 'Masukkan keyword';
+        return;
+      }
+
+      const queries = raw.split(',').map(q => q.trim()).filter(Boolean);
+      let map = new Map();
+
+      for (const q of queries) {
+        const res = await fetch(`https://huggingface.co/api/models?search=${q}&limit=20`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        data.forEach(m => map.set(m.id, m));
+      }
+
+      const models = Array.from(map.values());
+      let processed = 0;
+
+      for (const model of models) {
+        processed++;
+        progressFill.style.width = (processed / models.length * 100) + '%';
+
+        try {
+          const res = await fetch(`https://huggingface.co/api/models/${model.id}`);
+          const detail = await res.json();
+
+          let files = (detail.siblings || [])
+            .filter(f => f.rfilename.endsWith('.gguf'));
+
+          if (files.length === 0) continue;
+
+          const repoDiv = document.createElement('div');
+          repoDiv.className = 'repo';
+          repoDiv.innerHTML = `<b>${model.id}</b>`;
+
+          files.forEach((file, i) => {
+            const link = `https://huggingface.co/${model.id}/resolve/main/${file.rfilename}`;
+            const cls = getModelClass(file.rfilename);
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'file-wrapper ' + cls;
+
+            const a = document.createElement('a');
+            a.href = link;
+            a.target = "_blank";
+            a.className = 'file ' + cls;
+
+            if (i === 0) a.className += ' best';
+
+            a.textContent = file.rfilename;
+
+            // TAGS
+            const tags = getTags(model.id);
+            tags.forEach(t => {
+              const span = document.createElement('span');
+              span.className = 'tag ' + t;
+              span.textContent = t;
+              a.appendChild(span);
+            });
+
+            wrapper.appendChild(a);
+            wrapper.appendChild(createCommandUI(model.id, file.rfilename));
+
+            repoDiv.appendChild(wrapper);
+          });
+
+          if (repoDiv.children.length > 1) {
+            result.appendChild(repoDiv);
+          }
+
+        } catch { }
+      }
+
+      status.innerHTML = `Found (${models.length}) models`;
+      applyFilter();
+    }
+  </script>
+
+</body>
+
+</html>
